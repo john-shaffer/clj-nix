@@ -30,14 +30,9 @@ let
         inherit hash;
         url = consUrl [ mvn-repo mvn-path ];
       };
+      names = [ mvn-path ] ++ lib.optional (snapshot != null) (builtins.concatStringsSep "/" [ (builtins.dirOf mvn-path) snapshot ]);
     in
-    [
-      { inherit path; name = mvn-path; }
-    ]
-    ++ lib.lists.optional (snapshot != null) {
-      inherit path;
-      name = (builtins.concatStringsSep "/" [ (builtins.dirOf mvn-path) snapshot ]);
-    };
+    map (name: { inherit path name; }) names;
 
   git-deps =
     { lib, url, rev, hash, fetch ? "pkgs.fetchgit", ... }:
