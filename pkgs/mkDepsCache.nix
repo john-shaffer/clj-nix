@@ -68,13 +68,26 @@ let
       path = writeText "maven-data" content;
     };
 
-  maven-cache = linkFarm "maven-cache" (
-    (builtins.concatMap maven-deps lock.mvn-deps)
-    ++
-    (builtins.map maven-extra-cache maven-extra)
-  );
+  maven-dep-list = builtins.concatMap maven-deps lock.mvn-deps;
+  maven-extra-list = builtins.map maven-extra-cache maven-extra;
 
-  git-cache = linkFarm "git-cache" (builtins.map git-deps lock.git-deps);
+  maven-cache = runCommand "maven-cache" { } ''
+    mkdir -p $out
+    ${lib.concatStringsSep "\n" (map (dep: ''
+      mkdir -p $out/$(dirname "${dep.name}")
+      ln -s ${dep.path} $out/${dep.name}
+    '') (maven-dep-list ++ maven-extra-list))}
+  '';
+
+  git-dep-list = builtins.map git-deps lock.git-deps;
+
+  git-cache = runCommand "git-cache" { } ''
+    mkdir -p $out
+    ${lib.concatStringsSep "\n" (map (dep: ''
+      mkdir -p $out/$(dirname "${dep.name}")
+      ln -s ${dep.path} $out/${dep.name}
+    '') git-dep-list)}
+  '';
 
   git-repo-config = runCommand "gitlibs-config-dir"
     { }
