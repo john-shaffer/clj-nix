@@ -75,7 +75,7 @@ let
     mkdir -p $out
     ${lib.concatStringsSep "\n" (map (dep: ''
       mkdir -p $out/$(dirname "${dep.name}")
-      ln -s ${dep.path} $out/${dep.name}
+      cp -r ${dep.path} $out/${dep.name}
     '') (maven-dep-list ++ maven-extra-list))}
   '';
 
@@ -85,7 +85,7 @@ let
     mkdir -p $out
     ${lib.concatStringsSep "\n" (map (dep: ''
       mkdir -p $out/$(dirname "${dep.name}")
-      ln -s ${dep.path} $out/${dep.name}
+      cp -r ${dep.path} $out/${dep.name}
     '') git-dep-list)}
   '';
 
