@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `deps-lock` records the files of `:local/root` dependencies under
+  `local-deps`, and the new `localDepsPaths` helper turns them into a fileset,
+  so that a project in a monorepo such as a Polylith workspace rebuilds only
+  when files it uses change
+
 ## 0.4.0 (2024-11-20)
 
 - Add `--lein-profiles` to the deps-lock CLI by #145 @JohnnyJayJay in #145

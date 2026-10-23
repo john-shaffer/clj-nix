@@ -246,6 +246,9 @@ mkBabashka {
 - [mk-deps-cache](#mk-deps-cache): Creates a Clojure deps cache (maven cache +
   gitlibs cache). Used by `mkCljBin` and `mkCljLib`. You can use this function
   to to have access to the cache in a nix derivation.
+- [localDepsPaths](#localdepspaths): Lists the files of the `:local/root`
+  dependencies in a lock file, to build a `projectSrc` with only the files a
+  project uses, e.g. in a Polylith workspace.
 
 ### mkCljCli
 
@@ -307,5 +310,46 @@ command with the `buildCommand` argument.
 ```nix
 mk-deps-cache {
   lockfile = ./deps-lock.json;
+}
+```
+
+### localDepsPaths
+
+Returns the paths of the files that a project needs from its `:local/root`
+dependencies, as recorded in its lock file: each dependency's `deps.edn` (or
+`pom.xml`) and its `:paths`. Use it with
+[lib.fileset](https://nixos.org/manual/nixpkgs/stable/#sec-functions-library-fileset)
+to build a `projectSrc` that changes only when those files change. This is
+useful in monorepos such as a [Polylith](https://polylith.gitbook.io) workspace,
+where a project uses only some of the components. Paths that don't exist are
+left out. Available as `clj-nix.lib.localDepsPaths`. Takes the following
+attributes:
+
+**lockfile**: Path to the lock file, e.g. `./deps-lock.json`. The paths are
+relative to its directory.
+
+**Example**:
+
+```nix
+clj-nix.lib.mkCljApp {
+  inherit pkgs;
+  modules = [
+    {
+      projectSrc = lib.fileset.toSource {
+        root = ../..;
+        fileset = lib.fileset.unions (
+          [ ./. ]
+          ++ clj-nix.lib.localDepsPaths { lockfile = ./deps-lock.json; }
+        );
+      };
+      lockfile = ./deps-lock.json;
+      name = "my-org/my-project";
+      main-ns = "my-org.my-base.main";
+      buildCommand = ''
+        cd projects/my-project
+        clj -T:build uber
+      '';
+    }
+  ];
 }
 ```

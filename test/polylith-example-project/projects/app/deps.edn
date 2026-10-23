@@ -1,0 +1,5 @@
+{:deps {org.clojure/clojure {:mvn/version "1.12.6"}
+        poly/app {:local/root "../../bases/app"}
+        poly/greet {:local/root "../../components/greet"}}
+ :aliases {:build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.14"}}
+                   :ns-default build}}}

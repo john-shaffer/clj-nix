@@ -12,6 +12,22 @@ in
 
 { clj-nix_overlay }:
 {
+  # The files of the :local/root deps in a lock file, for use with
+  # lib.fileset. Building projectSrc from these instead of a whole
+  # directory, e.g. a Polylith workspace, avoids rebuilds when unrelated
+  # files change. Paths that don't exist, such as an unused "resources"
+  # dir, are left out.
+  localDepsPaths =
+    { lockfile }:
+    assert builtins.isPath lockfile;
+    let
+      lock = builtins.fromJSON (builtins.readFile lockfile);
+      dir = builtins.dirOf lockfile;
+    in
+    builtins.filter builtins.pathExists (
+      builtins.concatMap (dep: map (p: dir + "/${p}") dep.paths) (lock.local-deps or [ ])
+    );
+
   mkCljCli =
     {
       jdkDrv,

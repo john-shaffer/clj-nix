@@ -1,0 +1,59 @@
+# vi: ft=nix
+{
+  description = "A clj-nix flake for a Polylith workspace";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    clj-nix = {
+      url = "{{cljnixUrl}}";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+  outputs =
+    {
+      self,
+      nixpkgs,
+      clj-nix,
+    }:
+
+    let
+      supportedSystems = [
+        "aarch64-darwin"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "x86_64-linux"
+      ];
+    in
+    {
+      packages = nixpkgs.lib.genAttrs supportedSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          lib = pkgs.lib;
+        in
+        {
+          app = clj-nix.lib.mkCljApp {
+            inherit pkgs;
+            modules = [
+              {
+                projectSrc = lib.fileset.toSource {
+                  root = ./.;
+                  fileset = lib.fileset.unions (
+                    [ ./projects/app ]
+                    ++ clj-nix.lib.localDepsPaths { lockfile = ./projects/app/deps-lock.json; }
+                  );
+                };
+                lockfile = ./projects/app/deps-lock.json;
+                name = "poly/app";
+                main-ns = "app.main";
+                buildCommand = ''
+                  cd projects/app
+                  clj -T:build uber
+                '';
+              }
+            ];
+          };
+        }
+      );
+    };
+}
