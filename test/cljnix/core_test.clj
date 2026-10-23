@@ -186,6 +186,21 @@
                        :snapshot "clj-kondo-2022.04.26-SNAPSHOT.pom"}])
            mvn-deps)))))
 
+(deftest management-deps-test
+  ;; The managed POMs are in the local repo, as they would be if another
+  ;; project had used them
+  (h/prep-deps '{:deps {cheshire/cheshire {:mvn/version "6.2.0"}
+                        org.junit/junit-bom {:mvn/version "5.14.4" :extension "pom"}}})
+
+  (testing "Imported BOMs are included"
+    (is (match?
+         (m/embeds [{:mvn-path "org/junit/junit-bom/5.14.4/junit-bom-5.14.4.pom"}])
+         (maven-deps {:deps {'org.junit.platform/junit-platform-commons {:mvn/version "1.14.4"}}}))))
+
+  (testing "Other managed deps are left out, even if they're in the local repo"
+    (is (nil? (h/find-pom "cheshire/cheshire/6.2.0/"
+                          (maven-deps {:deps {'metosin/muuntaja {:mvn/version "0.6.12"}}}))))))
+
 (deftest local-deps-test
   (fs/with-temp-dir [ws-dir {:prefix "dummy_workspace"}]
     (let [spit-helper (h/make-spit-helper ws-dir)

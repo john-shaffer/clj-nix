@@ -395,14 +395,18 @@
   (some->> (pom pom-path)
            (.getDependencyManagement)
            (.getDependencies)
+           ;; Only imported BOMs are needed to resolve deps. Maven downloads
+           ;; them, so they're always in the local repo. Other managed deps
+           ;; are there only if something else happened to download them.
+           (filter #(= "import" (.getScope ^Dependency %)))
            (map dep-path)
            (filter fs/exists?)
            (distinct)
            (remove #(= % pom-path))))
 
 (defn get-management-deps
-  "Given a pom file, recursively returns all the management dependencies
-   In many cases those POMs contain BOM information"
+  "Given a pom file, recursively returns the BOMs that it imports in its
+   dependencyManagement"
   [pom-path]
   (when pom-path
     (loop [deps #{}
