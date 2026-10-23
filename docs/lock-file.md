@@ -71,6 +71,14 @@ The trade-off (and reason this is not the default) is that the
 dependency will be fetched at evaluation time, causing downloads even
 during `--dry-run`. This is pending resolution of an [issue in Nix](https://github.com/NixOS/nix/issues/9077).
 
+## Local dependencies
+
+The lock file lists the files of each `:local/root` dependency under
+`local-deps`, with paths relative to the lock file's directory. It's omitted
+when there are no local dependencies.
+[localDepsPaths](api.md#localdepspaths) reads it to build a `projectSrc` with
+only those files.
+
 ## Babashka dependencies
 
 Dependencies on `bb.edn` files can be added to the `deps-lock.json` file:

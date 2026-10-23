@@ -119,6 +119,30 @@
                         (assoc :fetch (:clj-nix.git/fetch desc))))))))
         (:libs basis)))
 
+(def ^:private manifest-files
+  {:deps "deps.edn"
+   :pom "pom.xml"})
+
+(defn local-deps
+  "Returns the :local/root deps in basis, with the files that a build needs
+   from each one: its manifest and its :paths. Paths are relative to
+   project-dir, so that a Nix fileset can include only these files."
+  [basis project-dir]
+  (let [project-dir (fs/canonicalize project-dir)
+        relativize #(str (fs/relativize project-dir (fs/canonicalize %)))]
+    (into []
+          (comp
+           (filter utils/local?)
+           (map (fn [[lib {:keys [deps/manifest local/root paths]}]]
+                  {:lib lib
+                   :paths (->> (if-let [f (manifest-files manifest)]
+                                 (cons (fs/path root f) paths)
+                                 paths)
+                               (map relativize)
+                               sort
+                               vec)})))
+          (:libs basis))))
+
 (def mvn-cache-subdir "mvn")
 (def git-cache-subdir "git")
 
@@ -271,6 +295,8 @@
   ([deps-path cache-dir]
    (get-deps! deps-path cache-dir nil))
   ([deps-path cache-dir deps-alias]
+   (get-deps! deps-path cache-dir deps-alias (fs/parent deps-path)))
+  ([deps-path cache-dir deps-alias project-dir]
 
    (if deps-alias
      (printerrln "Processing" deps-path "with alias" deps-alias)
@@ -294,7 +320,8 @@
 
          {:mvn mvn-deps
           :mvn-repos mvn-repos
-          :git git-deps})))))
+          :git git-deps
+          :local (local-deps basis project-dir)})))))
 
 (defn- aliases-combinations
   [[deps-file aliases]]
@@ -314,6 +341,7 @@
            :rev 12
            :tag 13
            :git-dir 14
+           :paths 15
 
            :hash 20
            :fetch 30
@@ -322,7 +350,8 @@
            :lock-version 100
            :clojure-version 101
            :git-deps 102
-           :mvn-deps 103}]
+           :mvn-deps 103
+           :local-deps 104}]
     (compare (get m a 1000)
              (get m b 1000))))
 
@@ -464,14 +493,15 @@
       (comp
        (map #(deps-file->deps+alias % opts))
        (mapcat aliases-combinations)
-       (map (fn [[deps-path aliases]] (get-deps! deps-path cache-dir aliases))))
+       (map (fn [[deps-path aliases]] (get-deps! deps-path cache-dir aliases project-dir))))
       (completing
-       (fn [acc {:keys [mvn git mvn-repos]}]
+       (fn [acc {:keys [mvn git mvn-repos local]}]
          (-> acc
              (update :mvn into mvn)
              (update :mvn-repos into mvn-repos)
-             (update :git into git)))
-       (fn [{:keys [mvn git mvn-repos]}]
+             (update :git into git)
+             (update :local into local)))
+       (fn [{:keys [mvn git mvn-repos local]}]
          (when lein?
            (download-lein-deps cache-dir lein-profiles))
          (let [all-mvn-deps (->> (concat mvn (missing-mvn-deps mvn cache-dir mvn-repos))
@@ -481,33 +511,45 @@
                                  (distinct)
                                  (into []))]
            (warn-on-maven-version-ranges! all-mvn-deps cache-dir)
-           (sorted-map-by
-            map-comparator
-            :lock-version LOCK-VERSION
-            :mvn-deps (->> all-mvn-deps
-                           (map #(into (sorted-map-by map-comparator)
-                                       (select-keys % [:mvn-repo :mvn-path :hash :snapshot])))
-                           (into []))
-            :git-deps (->> (concat git (missing-git-deps git cache-dir))
-                           (map #(update % :lib str))
-                           (sort-by :lib)
-                           (map #(cond-> %
-                                   (nil? (:tag %)) (dissoc :tag)
-                                   (not (:needs-prep %)) (dissoc :needs-prep)))
-                           (map add-to-nix-store!)
-                           (map #(into (sorted-map-by map-comparator)
-                                       (select-keys % [:tag :lib :rev :url :git-dir :hash :fetch :needs-prep])))
-                           (distinct)
-                           (reduce (fn [acc v]
-                                     (if (same-git-dep? (peek acc) v)
-                                       (conj (pop acc) (merge v (peek acc)))
-                                       (conj acc v)))
-                                   [])
-                           (calc-ancestors {:cache-dir cache-dir}))))))
+           (cond->
+            (sorted-map-by
+             map-comparator
+             :lock-version LOCK-VERSION
+             :mvn-deps (->> all-mvn-deps
+                            (map #(into (sorted-map-by map-comparator)
+                                        (select-keys % [:mvn-repo :mvn-path :hash :snapshot])))
+                            (into []))
+             :git-deps (->> (concat git (missing-git-deps git cache-dir))
+                            (map #(update % :lib str))
+                            (sort-by :lib)
+                            (map #(cond-> %
+                                    (nil? (:tag %)) (dissoc :tag)
+                                    (not (:needs-prep %)) (dissoc :needs-prep)))
+                            (map add-to-nix-store!)
+                            (map #(into (sorted-map-by map-comparator)
+                                        (select-keys % [:tag :lib :rev :url :git-dir :hash :fetch :needs-prep])))
+                            (distinct)
+                            (reduce (fn [acc v]
+                                      (if (same-git-dep? (peek acc) v)
+                                        (conj (pop acc) (merge v (peek acc)))
+                                        (conj acc v)))
+                                    [])
+                            (calc-ancestors {:cache-dir cache-dir})))
+             ;; Omitted when empty, to keep lock files of projects without
+             ;; local deps unchanged
+             (seq local)
+             (assoc :local-deps
+                    (->> local
+                         (map #(into (sorted-map-by map-comparator)
+                                     (update % :lib str)))
+                         (distinct)
+                         (sort-by (juxt :lib :paths))
+                         (into [])))))))
 
       {:mvn extra-mvn
        :mvn-repos mvn/standard-repos
-       :git extra-git}
+       :git extra-git
+       :local []}
       (utils/get-deps-files project-dir opts)))))
 
 (def cli-spec

@@ -306,6 +306,10 @@
   [[_ {:keys [git/url]}]]
   (boolean url))
 
+(defn local?
+  [[_ {:keys [local/root]}]]
+  (boolean root))
+
 (defn artifact->pom
   [path]
   (str (->> (fs/glob (fs/parent path) "*.pom")

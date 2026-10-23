@@ -2,6 +2,7 @@
   (:require
    [clojure.test :refer [deftest is use-fixtures testing]]
    [babashka.fs :as fs]
+   [clojure.java.io :as io]
    [cljnix.test-helpers :as h]
    [cljnix.core :as c]
    [clojure.tools.deps.specs :as deps.spec]
@@ -184,6 +185,38 @@
                        :mvn-repo "https://repo.clojars.org/",
                        :snapshot "clj-kondo-2022.04.26-SNAPSHOT.pom"}])
            mvn-deps)))))
+
+(deftest local-deps-test
+  (fs/with-temp-dir [ws-dir {:prefix "dummy_workspace"}]
+    (let [spit-helper (h/make-spit-helper ws-dir)
+          project-dir (fs/path ws-dir "projects" "app")]
+      (doseq [dir ["projects/app" "components/a" "components/b" "components/c" "lib"]]
+        (fs/create-dirs (fs/path ws-dir dir)))
+      (spit-helper "projects/app/deps.edn"
+                   {:deps {'my/a {:local/root "../../components/a"}
+                           'my/jar {:local/root "../../lib/jar.jar"}}
+                    :aliases {:extra {:extra-deps {'my/c {:local/root "../../components/c"}}}}})
+      (spit-helper "components/a/deps.edn"
+                   {:paths ["src" "resources"]
+                    :deps {'my/b {:local/root "../b"}}})
+      (spit-helper "components/b/deps.edn" {})
+      (spit-helper "components/c/deps.edn" {:paths ["src"]})
+      (with-open [jar (java.util.jar.JarOutputStream.
+                       (io/output-stream (fs/file ws-dir "lib" "jar.jar")))]
+        (.putNextEntry jar (java.util.jar.JarEntry. "empty.txt")))
+      (is (= [{:lib "my/a"
+               :paths ["../../components/a/deps.edn"
+                       "../../components/a/resources"
+                       "../../components/a/src"]}
+              {:lib "my/b"
+               :paths ["../../components/b/deps.edn"
+                       "../../components/b/src"]}
+              {:lib "my/c"
+               :paths ["../../components/c/deps.edn"
+                       "../../components/c/src"]}
+              {:lib "my/jar"
+               :paths ["../../lib/jar.jar"]}]
+             (:local-deps (c/lock-file (str project-dir))))))))
 
 (deftest expand-sha-tests
   (fs/with-temp-dir [project-dir {:prefix "dummy_project"}]
