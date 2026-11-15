@@ -9,7 +9,9 @@
 #    provide a default jdk
 #
 #  Env variables:
-#  - jarPath: Path to a uberjar (MANDATORY)
+#  - jarPath: Path to a uberjar (OPTIONAL)
+#  - jarPathFile: Path to a file holding jarPath, used if jarPath is unset
+#                 (OPTIONAL)
 #  - jdkModules: Option passed to jlink --add-modules. If null, jeps will be
 #                used to analyze the cljDrv and pick the necessary modules
 #                automatically. (OPTIONAL)
@@ -24,6 +26,10 @@ customJdkInstallHook() {
 
   # Debug info
   java -version
+
+  if [ -z "${jarPath-}" ] && [ -n "${jarPathFile-}" ]; then
+    jarPath="$(<"$jarPathFile")"
+  fi
 
   ## -z ${VAR-} -> VAR is EMPTY
   ## -n ${VAR-} -> VAR NOT empty

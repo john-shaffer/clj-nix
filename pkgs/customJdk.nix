@@ -30,12 +30,14 @@ let
     "meta"
   ];
 
-  jarPath = lib.fileContents "${cljDrv}/nix-support/jar-path";
+  # Reading this file at eval time would be import-from-derivation,
+  # building cljDrv before evaluation can go on, so the hook reads it
+  jarPathFile = if cljDrv == null then null else "${cljDrv}/nix-support/jar-path";
 
 in
 stdenv.mkDerivation (
   {
-    inherit jarPath;
+    inherit jarPathFile;
     pname = if cljDrv == null then name else cljDrv.pname;
     version = if cljDrv == null then version else cljDrv.version;
 
@@ -69,7 +71,8 @@ stdenv.mkDerivation (
         { }
       else
         {
-          inherit jarPath;
+          # Only evaluating this builds cljDrv
+          jarPath = lib.fileContents jarPathFile;
           inherit (cljDrv)
             main-ns
             fullId
