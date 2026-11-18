@@ -592,6 +592,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#localdepspaths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        localDepsPaths
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -886,6 +897,17 @@
     <span class="md-ellipsis">
       
         mk-deps-cache
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#localdepspaths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        localDepsPaths
       
     </span>
   </a>
@@ -1189,6 +1211,9 @@ insensitive and we can omit the <code>BABASHKA_FEATURE_</code> prefix.</p>
 <li><a href="#mk-deps-cache">mk-deps-cache</a>: Creates a Clojure deps cache (maven cache +
   gitlibs cache). Used by <code>mkCljBin</code> and <code>mkCljLib</code>. You can use this function
   to to have access to the cache in a nix derivation.</li>
+<li><a href="#localdepspaths">localDepsPaths</a>: Lists the files of the <code>:local/root</code>
+  dependencies in a lock file, to build a <code>projectSrc</code> with only the files a
+  project uses, e.g. in a Polylith workspace.</li>
 </ul>
 <h3 id="mkcljcli">mkCljCli</h3>
 <p>Returns a list containing the command and arguments to launch an application
@@ -1231,6 +1256,41 @@ command with the <code>buildCommand</code> argument.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>mk-deps-cache <span class="p">{</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>  <span class="ss">lockfile</span> <span class="o">=</span> <span class="l">./deps-lock.json</span><span class="p">;</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="localdepspaths">localDepsPaths</h3>
+<p>Returns the paths of the files that a project needs from its <code>:local/root</code>
+dependencies, as recorded in its lock file: each dependency's <code>deps.edn</code> (or
+<code>pom.xml</code>) and its <code>:paths</code>. Use it with
+<a href="https://nixos.org/manual/nixpkgs/stable/#sec-functions-library-fileset">lib.fileset</a>
+to build a <code>projectSrc</code> that changes only when those files change. This is
+useful in monorepos such as a <a href="https://polylith.gitbook.io">Polylith</a> workspace,
+where a project uses only some of the components. Paths that don't exist are
+left out. Available as <code>clj-nix.lib.localDepsPaths</code>. Takes the following
+attributes:</p>
+<p><strong>lockfile</strong>: Path to the lock file, e.g. <code>./deps-lock.json</code>. The paths are
+relative to its directory.</p>
+<p><strong>Example</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>clj-nix<span class="o">.</span>lib<span class="o">.</span>mkCljApp <span class="p">{</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>  <span class="k">inherit</span> pkgs<span class="p">;</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>  <span class="ss">modules</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="p">{</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>      <span class="ss">projectSrc</span> <span class="o">=</span> lib<span class="o">.</span>fileset<span class="o">.</span>toSource <span class="p">{</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>        <span class="ss">root</span> <span class="o">=</span> <span class="l">../..</span><span class="p">;</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>        <span class="ss">fileset</span> <span class="o">=</span> lib<span class="o">.</span>fileset<span class="o">.</span>unions <span class="p">(</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>          <span class="p">[</span> <span class="l">./.</span> <span class="p">]</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>          <span class="o">++</span> clj-nix<span class="o">.</span>lib<span class="o">.</span>localDepsPaths <span class="p">{</span> <span class="ss">lockfile</span> <span class="o">=</span> <span class="l">./deps-lock.json</span><span class="p">;</span> <span class="p">}</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>        <span class="p">);</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>      <span class="p">};</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>      <span class="ss">lockfile</span> <span class="o">=</span> <span class="l">./deps-lock.json</span><span class="p">;</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>      <span class="ss">name</span> <span class="o">=</span> <span class="s2">&quot;my-org/my-project&quot;</span><span class="p">;</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>      <span class="ss">main-ns</span> <span class="o">=</span> <span class="s2">&quot;my-org.my-base.main&quot;</span><span class="p">;</span>
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>      <span class="ss">buildCommand</span> <span class="o">=</span> <span class="s s-Multiline">&#39;&#39;</span>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="s s-Multiline">        cd projects/my-project</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="s s-Multiline">        clj -T:build uber</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="s s-Multiline">      &#39;&#39;</span><span class="p">;</span>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>    <span class="p">}</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>  <span class="p">];</span>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="p">}</span>
 </code></pre></div>
 
 
